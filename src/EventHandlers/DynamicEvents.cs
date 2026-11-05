@@ -8,6 +8,7 @@ using SwiftlyS2.Shared.Players;
 using Config;
 using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Natives;
 using System.Collections.Concurrent;
 
 /// <summary>Handles dynamic events and sends messages to players based on configured rules.</summary>
@@ -208,6 +209,8 @@ public sealed class DynamicEvents
 
         // Get the player from the accessor using the key (player, attacker etc)
         player = method.Invoke(accessor, [key]) as IPlayer;
+        if (!IsUsable(player))
+            player = null;
 
         return player != null;
     }
@@ -318,7 +321,7 @@ public sealed class DynamicEvents
                 return $"{{{path}}}";
 
             current = method.Invoke(accessor, [key]);
-            if (current == null)
+            if (!IsUsable(current))
                 return string.Empty;
         }
         else
@@ -334,10 +337,10 @@ public sealed class DynamicEvents
         // --- Remaining nested parts ---
         for (var i = 1; i < parts.Length; i++)
         {
-            if (current == null)
+            if (!IsUsable(current))
                 return string.Empty;
 
-            var prop = current.GetType().GetProperty(parts[i],
+            var prop = current!.GetType().GetProperty(parts[i],
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
             if (prop == null)
                 return $"{{{path}}}";
@@ -345,8 +348,22 @@ public sealed class DynamicEvents
             current = prop.GetValue(current);
         }
 
-        return current?.ToString() ?? string.Empty;
+        return IsUsable(current) ? current!.ToString() ?? string.Empty : string.Empty;
     }
+
+    /// <summary>
+    /// Native-backed objects can wrap a null pointer: IGameEventAccessor.GetPlayerController returns a
+    /// wrapper around address 0 when the field does not resolve to a controller (e.g. a world/bomb/fall
+    /// "attacker"). Reading a schema field on it dereferences 0 + offset and crashes the server, so check
+    /// the handle before touching any of its members.
+    /// </summary>
+    private static bool IsUsable(object? value) => value switch
+    {
+        null => false,
+        INativeHandle handle => handle.IsValid,
+        IPlayer player => player.IsValid,
+        _ => true
+    };
 
 
     // ------------------------------
