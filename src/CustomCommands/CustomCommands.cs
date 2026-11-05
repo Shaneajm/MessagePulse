@@ -2,26 +2,22 @@
 
 using Config;
 using Models;
-using SwDevtools.Configuration;
-using SwDevtools.Logging;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 
 /// <summary>Handles creation of custom commands.</summary>
 public sealed class CustomCommandsHandler(
     ISwiftlyCore core,
-    IPluginLogger logger,
+    ILogger<CustomCommandsHandler> logger,
     MessageProcessor processor,
-    IJsonConfig jsonConfig)
+    JsonConfigLoader configLoader)
 {
     private CommandsConfig Config { get; set; } = new();
     private readonly HashSet<string> registered = new(StringComparer.OrdinalIgnoreCase);
 
     public void Initialize(bool hotReload)
     {
-        this.Config = jsonConfig.GetOrCreate<CommandsConfig>("custom_commands.json", "customcommands",
-            core.Configuration.GetConfigPath("custom_commands.json"),
-            JsonConfigInitMode.ExampleFromResources, "example_custom_commands.json"
-        );
+        this.Config = configLoader.Load<CommandsConfig>("custom_commands.json", "example_custom_commands.json");
 
         if (hotReload)
             UnregisterAllCommands();
@@ -31,8 +27,8 @@ public sealed class CustomCommandsHandler(
             Register(command);
         }
 
-        logger.Info($"[CustomCommands] Registered [green]{registered.Count}[/] custom commands!");
-        logger.Info($"[CustomCommands] Commands: {string.Join(", ", registered)}");
+        logger.LogInformation("Registered {Count} custom commands: {Commands}",
+            registered.Count, string.Join(", ", registered));
     }
 
     // Command registration ¯\_(ツ)_/¯
@@ -42,9 +38,8 @@ public sealed class CustomCommandsHandler(
 
         if (triggers.Any(registered.Contains))
         {
-            logger.Error(
-                $"[CustomCommands] Custom command with triggers {string.Join(", ", triggers)} is already registered."
-            );
+            logger.LogError("Custom command with triggers {Triggers} is already registered.",
+                string.Join(", ", triggers));
             return;
         }
 

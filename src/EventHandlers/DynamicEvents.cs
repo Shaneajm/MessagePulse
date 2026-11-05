@@ -1,13 +1,12 @@
 ﻿namespace MsgPulse.Services;
 
-using SwDevtools.Configuration;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using SwiftlyS2.Shared.GameEvents;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
 using Config;
-using SwDevtools.Logging;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 using System.Collections.Concurrent;
 
@@ -23,7 +22,7 @@ public sealed class DynamicEvents
 
     // Properties
     private ISwiftlyCore Core { get; }
-    private IPluginLogger Logger { get; }
+    private ILogger<DynamicEvents> Logger { get; }
     private MessageProcessor Processor { get; }
     private EventMessagesConfig Config { get; set; }
 
@@ -43,18 +42,14 @@ public sealed class DynamicEvents
     private static readonly Regex tokenRegex = new(@"\{([^{}]+)\}", RegexOptions.Compiled);
 
 
-    public DynamicEvents(ISwiftlyCore core, IPluginLogger logger, MessageProcessor processor,
-        IJsonConfig jsonConfig)
+    public DynamicEvents(ISwiftlyCore core, ILogger<DynamicEvents> logger, MessageProcessor processor,
+        JsonConfigLoader configLoader)
     {
         this.Core = core;
         this.Logger = logger;
         this.Processor = processor;
 
-        this.Config = jsonConfig.GetOrCreate<EventMessagesConfig>(
-            "event_messages.json", "eventmessages",
-            core.Configuration.GetConfigPath("event_messages.json"),
-            JsonConfigInitMode.ExampleFromResources, "example_event_messages.json"
-        );
+        this.Config = configLoader.Load<EventMessagesConfig>("event_messages.json", "example_event_messages.json");
 
         core.Registrator.Register(this);
     }
@@ -75,7 +70,7 @@ public sealed class DynamicEvents
             var eventType = ResolveEventType(rule.Event);
             if (eventType == null)
             {
-                Logger.Error($"[EventMessages] Failed to resolve event type for rule {rule.Event}");
+                Logger.LogError("Failed to resolve event type for rule {Event}", rule.Event);
                 continue;
             }
 
@@ -107,7 +102,7 @@ public sealed class DynamicEvents
 
         if (hookPost == null)
         {
-            Logger.Warn("[EventMessages] HookPost not found");
+            Logger.LogWarning("HookPost not found");
             return;
         }
 
@@ -126,7 +121,7 @@ public sealed class DynamicEvents
         genericHook.Invoke(gameEventService, [del]);
         registeredEvents.Add(eventType);
 
-        Logger.Info($"[EventMessages] Registered event [green]{eventType.Name}[/]");
+        Logger.LogInformation("Registered event {Event}", eventType.Name);
     }
 
     private HookResult OnGameEventGeneric<TEvent>(TEvent @event)

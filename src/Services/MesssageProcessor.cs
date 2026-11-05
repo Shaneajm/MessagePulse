@@ -1,14 +1,13 @@
 ﻿namespace MsgPulse.Services;
 
-using SwDevtools.Players;
-using SwDevtools.Logging;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 using PlaceholderAPI.Contract;
 using SwiftlyS2.Shared.Players;
 using System.Text.RegularExpressions;
 
 /// <summary>Processes messages and sends them to players.</summary>
-public sealed class MessageProcessor(ISwiftlyCore core, IPluginLogger logger, ITranslate translations)
+public sealed class MessageProcessor(ISwiftlyCore core, ILogger<MessageProcessor> logger)
 {
     public IPlaceholderAPIv1? PlaceholderApi { get; set; }
     private static readonly Regex msgPulsePrefix = new(@"\{MP_PREFIX\}", RegexOptions.Compiled);
@@ -28,7 +27,7 @@ public sealed class MessageProcessor(ISwiftlyCore core, IPluginLogger logger, IT
         }
         catch (Exception ex)
         {
-            logger.Error("[MessageProcessor] Failed to register mp_prefix placeholder:[/] {0}", ex.Message);
+            logger.LogError(ex, "Failed to register mp_prefix placeholder");
         }
     }
 
@@ -51,7 +50,7 @@ public sealed class MessageProcessor(ISwiftlyCore core, IPluginLogger logger, IT
 
     /// <summary>Gets the translated message for a specific player.</summary>
     public string GetTranslatedMessage(string message, IPlayer? player) =>
-        translations.Localize(player, message);
+        player is null ? core.Localizer[message] : core.Translation.GetPlayerLocalizer(player)[message];
 
     /// <summary>Replaces placeholders in a message for a specific player.</summary>
     public string ReplacePlaceholders(string message, IPlayer? player) =>
@@ -72,7 +71,7 @@ public sealed class MessageProcessor(ISwiftlyCore core, IPluginLogger logger, IT
         }
         catch (Exception ex)
         {
-            logger.Error("[MessageProcessor] Failed to unregister placeholder 'mp_prefix':[/] {0}", ex.Message);
+            logger.LogError(ex, "Failed to unregister mp_prefix placeholder");
         }
         finally
         {

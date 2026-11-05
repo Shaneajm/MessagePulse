@@ -14,7 +14,6 @@
 <p align="center">
   <img src="https://img.shields.io/github/downloads/itsAudioo/MessagePulse/total?style=for-the-badge&logo=dotnet" alt="Downloads">
   <img src="https://img.shields.io/github/stars/itsAudioo/MessagePulse?style=for-the-badge&logo=macys&logoColor=yellow" alt="Stars">
-  <img src="https://img.shields.io/nuget/v/SwDevtools?style=for-the-badge&logo=actigraph&logoColor=cyan&logoSize=auto&label=SwDevtools&color=cyan&link=https%3A%2F%2Fwww.nuget.org%2Fpackages%2FSwDevtools">
 </p>
 
 <div align="center">

@@ -2,35 +2,29 @@
 
 using Config;
 using Models;
-using SwDevtools.Configuration;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
-using SwDevtools.Logging;
 
 /// <summary>Schedules messages to be sent to players at specified intervals.</summary>
 public sealed class MessageScheduler(
     ISwiftlyCore core,
     MessageProcessor processor,
-    IPluginLogger logger,
-    IJsonConfig jsonConfig)
+    ILogger<MessageScheduler> logger,
+    JsonConfigLoader configLoader)
 {
     private readonly List<CancellationTokenSource> timers = [];
     private ChatBroadcast Config { get; set; } = new();
 
     public void Initialize(bool hotReload)
     {
-        logger.Info("[MessageScheduler] Initializing...");
+        logger.LogInformation("Initializing...");
 
         if (hotReload)
         {
             this.Release();
         }
 
-        this.Config =
-            jsonConfig.GetOrCreate<ChatBroadcast>(
-                "chat_broadcast.json", "chatbroadcast",
-                core.Configuration.GetConfigPath("chat_broadcast.json"),
-                JsonConfigInitMode.ExampleFromResources, "example_chat_broadcast.json"
-            );
+        this.Config = configLoader.Load<ChatBroadcast>("chat_broadcast.json", "example_chat_broadcast.json");
 
         var defaultInterval = Config.DefaultIntervalSeconds > 0 ? Config.DefaultIntervalSeconds : 60f;
         var buckets = new Dictionary<float, List<MsgModel>>();
@@ -75,7 +69,7 @@ public sealed class MessageScheduler(
             timers.Add(token);
         }
 
-        logger.Info($"[MessageScheduler] Initialized with [green]{timers.Count}[/] timers.");
+        logger.LogInformation("Initialized with {Count} timers.", timers.Count);
     }
 
     public void Release()

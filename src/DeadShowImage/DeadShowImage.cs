@@ -1,12 +1,14 @@
 namespace MsgPulse.Services;
 
 using Config;
-using SwDevtools.Logging;
-using SwDevtools.Configuration;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
 
 /// <summary>Displays advertisment image to dead players</summary>
-public sealed partial class DeadShowImage(ISwiftlyCore core, IPluginLogger logger, IJsonConfig jsonConfig)
+public sealed partial class DeadShowImage(
+    ISwiftlyCore core,
+    ILogger<DeadShowImage> logger,
+    JsonConfigLoader configLoader)
 {
     private readonly List<CancellationTokenSource> timers = [];
     private DeadShowImageConfig Config { get; set; } = new();
@@ -15,18 +17,14 @@ public sealed partial class DeadShowImage(ISwiftlyCore core, IPluginLogger logge
     {
         core.Registrator.Register(this);
 
-        logger.Info("[DeadShowImage] Initializing...");
+        logger.LogInformation("Initializing...");
 
         if (hotReload)
         {
             this.Release();
         }
 
-        this.Config = jsonConfig.GetOrCreate<DeadShowImageConfig>(
-            "dead_show_image.jsonc", "deadshowimage",
-            core.Configuration.GetConfigPath("dead_show_image.jsonc"),
-            JsonConfigInitMode.ExampleFromResources, "example_dead_show_image.jsonc"
-        );
+        this.Config = configLoader.Load<DeadShowImageConfig>("dead_show_image.jsonc", "example_dead_show_image.jsonc");
 
         Start();
     }
@@ -55,7 +53,7 @@ public sealed partial class DeadShowImage(ISwiftlyCore core, IPluginLogger logge
         });
         timers.Add(token);
 
-        logger.Info($"[DeadShowImage] Started with {Config.Images.Count} image(s).");
+        logger.LogInformation("Started with {Count} image(s).", Config.Images.Count);
     }
 
     public void Release()
