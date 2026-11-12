@@ -6,6 +6,12 @@ public static class ServiceCollectionExt
 {
     extension(IServiceCollection collection)
     {
+        public IServiceCollection AddJsonConfigLoader()
+        {
+            collection.AddSingleton<JsonConfigLoader>();
+            return collection;
+        }
+
         public IServiceCollection AddMessageScheduler()
         {
             collection.AddSingleton<MessageScheduler>();

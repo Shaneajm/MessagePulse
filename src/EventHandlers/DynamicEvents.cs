@@ -1,14 +1,14 @@
 ﻿namespace MsgPulse.Services;
 
-using SwDevtools.Configuration;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using SwiftlyS2.Shared.GameEvents;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
 using Config;
-using SwDevtools.Logging;
+using Microsoft.Extensions.Logging;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Natives;
 using System.Collections.Concurrent;
 
 /// <summary>Handles dynamic events and sends messages to players based on configured rules.</summary>
@@ -23,7 +23,7 @@ public sealed class DynamicEvents
 
     // Properties
     private ISwiftlyCore Core { get; }
-    private IPluginLogger Logger { get; }
+    private ILogger<DynamicEvents> Logger { get; }
     private MessageProcessor Processor { get; }
     private EventMessagesConfig Config { get; set; }
 
@@ -43,25 +43,25 @@ public sealed class DynamicEvents
     private static readonly Regex tokenRegex = new(@"\{([^{}]+)\}", RegexOptions.Compiled);
 
 
-    public DynamicEvents(ISwiftlyCore core, IPluginLogger logger, MessageProcessor processor,
-        IJsonConfig jsonConfig)
+    public DynamicEvents(ISwiftlyCore core, ILogger<DynamicEvents> logger, MessageProcessor processor,
+        JsonConfigLoader configLoader)
     {
         this.Core = core;
         this.Logger = logger;
         this.Processor = processor;
 
-        this.Config = jsonConfig.GetOrCreate<EventMessagesConfig>(
-            "event_messages.json", "eventmessages",
-            core.Configuration.GetConfigPath("event_messages.json"),
-            JsonConfigInitMode.ExampleFromResources, "example_event_messages.json"
-        );
+        this.Config = configLoader.Load<EventMessagesConfig>("event_messages.json", "example_event_messages.json");
 
         core.Registrator.Register(this);
     }
 
     public void Initialize(bool hotReload)
     {
-        if (!Config.Enabled) return;
+        if (!Config.Enabled)
+        {
+            Logger.LogInformation("Event messages are disabled (Enabled = false), no events hooked.");
+            return;
+        }
 
         if (hotReload)
         {
@@ -75,7 +75,7 @@ public sealed class DynamicEvents
             var eventType = ResolveEventType(rule.Event);
             if (eventType == null)
             {
-                Logger.Error($"[EventMessages] Failed to resolve event type for rule {rule.Event}");
+                Logger.LogError("Failed to resolve event type for rule {Event}", rule.Event);
                 continue;
             }
 
@@ -107,7 +107,7 @@ public sealed class DynamicEvents
 
         if (hookPost == null)
         {
-            Logger.Warn("[EventMessages] HookPost not found");
+            Logger.LogWarning("HookPost not found");
             return;
         }
 
@@ -126,7 +126,7 @@ public sealed class DynamicEvents
         genericHook.Invoke(gameEventService, [del]);
         registeredEvents.Add(eventType);
 
-        Logger.Info($"[EventMessages] Registered event [green]{eventType.Name}[/]");
+        Logger.LogInformation("Registered event {Event}", eventType.Name);
     }
 
     private HookResult OnGameEventGeneric<TEvent>(TEvent @event)
@@ -213,6 +213,8 @@ public sealed class DynamicEvents
 
         // Get the player from the accessor using the key (player, attacker etc)
         player = method.Invoke(accessor, [key]) as IPlayer;
+        if (!IsUsable(player))
+            player = null;
 
         return player != null;
     }
@@ -323,7 +325,7 @@ public sealed class DynamicEvents
                 return $"{{{path}}}";
 
             current = method.Invoke(accessor, [key]);
-            if (current == null)
+            if (!IsUsable(current))
                 return string.Empty;
         }
         else
@@ -339,10 +341,10 @@ public sealed class DynamicEvents
         // --- Remaining nested parts ---
         for (var i = 1; i < parts.Length; i++)
         {
-            if (current == null)
+            if (!IsUsable(current))
                 return string.Empty;
 
-            var prop = current.GetType().GetProperty(parts[i],
+            var prop = current!.GetType().GetProperty(parts[i],
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
             if (prop == null)
                 return $"{{{path}}}";
@@ -350,8 +352,22 @@ public sealed class DynamicEvents
             current = prop.GetValue(current);
         }
 
-        return current?.ToString() ?? string.Empty;
+        return IsUsable(current) ? current!.ToString() ?? string.Empty : string.Empty;
     }
+
+    /// <summary>
+    /// Native-backed objects can wrap a null pointer: IGameEventAccessor.GetPlayerController returns a
+    /// wrapper around address 0 when the field does not resolve to a controller (e.g. a world/bomb/fall
+    /// "attacker"). Reading a schema field on it dereferences 0 + offset and crashes the server, so check
+    /// the handle before touching any of its members.
+    /// </summary>
+    private static bool IsUsable(object? value) => value switch
+    {
+        null => false,
+        INativeHandle handle => handle.IsValid,
+        IPlayer player => player.IsValid,
+        _ => true
+    };
 
 
     // ------------------------------

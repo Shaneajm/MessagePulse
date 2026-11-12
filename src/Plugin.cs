@@ -1,18 +1,17 @@
 ﻿namespace MsgPulse;
 
 using Services;
-using SwDevtools;
-using SwDevtools.Logging;
 using PlaceholderAPI.Contract;
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 [PluginMetadata(Id = "MessagePulse", Version = "1.0.0", Name = "MessagePulse", Author = "itsAudio",
     Description = "Advertisments, Custom commands, Event based messages and more...")]
 public sealed class MessagePulse : BasePlugin
 {
-    private IPluginLogger Logger { get; }
+    private ILogger<MessagePulse> Logger { get; }
     private IServiceProvider Provider { get; }
 
     private MessageProcessor Processor { get; }
@@ -27,12 +26,8 @@ public sealed class MessagePulse : BasePlugin
 
         services.AddSwiftly(core);
 
-        services.AddSwDevtoolsCore(core, this)
-            .AddSwDevtoolsLogging()
-            .AddSwDevtoolsConfig()
-            .AddSwDevtoolsTranslation();
-
-        services.AddMessageProcessor()
+        services.AddJsonConfigLoader()
+            .AddMessageProcessor()
             .AddMessageScheduler()
             .AddDynamicEvents()
             .AddCustomCommands()
@@ -40,7 +35,7 @@ public sealed class MessagePulse : BasePlugin
 
         this.Provider = services.BuildServiceProvider();
 
-        this.Logger = Provider.GetService<IPluginLogger>()!;
+        this.Logger = Provider.GetRequiredService<ILogger<MessagePulse>>();
         this.Processor = Provider.GetRequiredService<MessageProcessor>();
         this.Events = Provider.GetRequiredService<DynamicEvents>();
         this.Scheduler = Provider.GetRequiredService<MessageScheduler>();
@@ -61,14 +56,14 @@ public sealed class MessagePulse : BasePlugin
 
     public override void Load(bool hotReload)
     {
-        Logger.Info("[MessagePulse] Plugin Loading...");
+        Logger.LogInformation("Plugin loading...");
 
         this.Events.Initialize(hotReload);
         this.Scheduler.Initialize(hotReload);
         this.CustomCommands.Initialize(hotReload);
         this.DeadShowImage.Initialize(hotReload);
 
-        Logger.Info("[MessagePulse] Successfully loaded.");
+        Logger.LogInformation("Successfully loaded.");
     }
 
     public override void Unload()
@@ -80,6 +75,6 @@ public sealed class MessagePulse : BasePlugin
         this.CustomCommands.Release();
         this.DeadShowImage.Release();
 
-        Logger.Info("[MessagePulse] Successfully unloaded.");
+        Logger.LogInformation("Successfully unloaded.");
     }
 }
