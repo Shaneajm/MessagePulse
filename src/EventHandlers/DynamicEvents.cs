@@ -57,7 +57,11 @@ public sealed class DynamicEvents
 
     public void Initialize(bool hotReload)
     {
-        if (!Config.Enabled) return;
+        if (!Config.Enabled)
+        {
+            Logger.LogInformation("Event messages are disabled (Enabled = false), no events hooked.");
+            return;
+        }
 
         if (hotReload)
         {
